@@ -1,0 +1,10 @@
+#!/bin/sh
+
+set -e
+
+TMPDIR="$HOME/tmp"
+CLIPFILE="$TMPDIR/clipget"
+
+mkdir -p "$TMPDIR"
+test -p "$CLIPFILE" || mkfifo /tmp/wisq/clipboard
+exec cat > "$CLIPFILE"

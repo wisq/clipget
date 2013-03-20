@@ -1,0 +1,47 @@
+#!/usr/bin/ruby
+
+TMPDIR   = ENV['HOME']  + '/tmp'
+CLIPFILE = "#{TMPDIR}/clipget"
+
+Dir.mkdir(TMPDIR) unless File.directory?(TMPDIR)
+system('mkfifo', CLIPFILE) unless File.pipe?(CLIPFILE)
+
+reader, writer = IO.pipe
+
+cleaner = fork do
+  writer.close
+
+  next_clean = nil
+
+  loop do
+    timeout = next_clean ? next_clean - Time.now : nil
+
+    if timeout && timeout < 0
+      File.open('/dev/clipboard', 'w') { |fh| fh.print("\0") }
+      puts "Clipboard cleared."
+      next_clean = nil
+    else
+      select([reader], [], [], timeout)
+      begin
+        reader.read_nonblock(1024)
+        next_clean = Time.now + 30
+      rescue Errno::EWOULDBLOCK
+        # no data
+      end
+    end
+  end
+end
+
+reader.close
+
+loop do
+  puts 'Waiting ...'
+  data = File.open(CLIPFILE) do |fh|
+    puts 'Reading ...'
+    fh.read.chomp
+  end
+
+  File.open('/dev/clipboard', 'w') { |fh| fh.print data }
+  puts "Loaded #{data.bytesize} bytes."
+  writer.puts
+end
